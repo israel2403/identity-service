@@ -109,3 +109,16 @@ The existing `IdentityServiceApplicationTests` starts `postgres:17-alpine` as a 
 - Jenkins API token and CSRF behavior: https://www.jenkins.io/doc/developer/security/misc/
 - GitHub workflow triggers: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
 - Project infrastructure guide: `ROCKY-LINUX-CICD-GUIDE.md`, steps 12, 15, and 17.
+
+## Verified execution — 18 October 2026
+
+The complete GitHub-to-Jenkins path passed:
+
+- GitHub Actions run: https://github.com/israel2403/identity-service/actions/runs/39134032001
+- Jenkins job/build: `identity-service-ci` / `#2`, result `SUCCESS`.
+- Verified checkout: `5966f34776835ecb61c7674a4b756e92e0d9fe28`.
+- Maven: `BUILD SUCCESS`.
+- Published Jenkins report: 2 passed, 0 failed, 0 skipped.
+- Caller checks also covered failed builds, queue cancellation, submitted SHA, and private-origin polling.
+
+The workflow action is pinned to the official `actions/github-script` v8 commit, which uses Node 24.
