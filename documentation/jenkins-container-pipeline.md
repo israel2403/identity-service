@@ -4,7 +4,7 @@
 
 GitHub Actions calls Jenkins job `identity-service-ci` with the triggering commit's full SHA. Jenkins loads this repository's root `Jenkinsfile` from `main`, checks out the requested SHA using a refspec that fetches all repository branches, and verifies the resulting revision before executing CI. Manual Jenkins builds with an empty `GIT_COMMIT` build `main`.
 
-The GitHub workflow remains `.github/workflows/jenkins-feature.yml`, named **Jenkins feature verification**. It accepts branch pushes and manual branch dispatches. Existing branches must contain the new workflow, Maven configuration and CI scripts to use the complete pipeline. Cherry-pick the CI implementation commit, or bring these changes into those branches through your normal Git workflow.
+The GitHub workflow remains `.github/workflows/jenkins-feature.yml`, named **Identity service CI**. It accepts branch pushes and manual branch dispatches. Existing branches must contain the new workflow, Maven configuration and CI scripts to use the complete pipeline. Cherry-pick the CI implementation commit, or bring these changes into those branches through your normal Git workflow.
 
 ## Pipeline stages
 
@@ -58,7 +58,7 @@ Jenkins archives and fingerprints:
 - Container smoke-test application logs and health response.
 - Published image reference and registry digest.
 
-Open a Jenkins build's **Test Result** view for test counts and failures; use **Artifacts** for coverage and security details. The GitHub run summary includes the Jenkins build number, requested commit and final result. Retention keeps 20 builds and artifacts for the latest 10 builds.
+Open a Jenkins build's **Test Result** view for test counts and failures; use **Artifacts** for coverage and security details. The GitHub run summary includes the Jenkins build number, requested commit, final result, each stage's result and duration, and test counts. Retention keeps 20 builds and artifacts for the latest 10 builds.
 
 The SBOM is archived as a build artifact. It is not attached to the registry image as an attestation, and image signing/provenance attestations are not implemented by this pipeline.
 
@@ -93,3 +93,14 @@ Only trusted repository writers should be able to execute this pipeline: branch 
 - [Trivy container scanning](https://trivy.dev/docs/latest/guide/target/container_image/)
 - [Tomcat 11 security advisories](https://tomcat.apache.org/security-11.html)
 - [Jackson 3.1.7 release notes](https://github.com/FasterXML/jackson/wiki/Jackson-Release-3.1.7)
+
+
+## Follow individual CI stages
+
+The GitHub workflow is **Identity service CI**, with a single job named **Run CI in Jenkins**. Jenkins executes all ten CI stages. In GitHub, expand **Follow Jenkins stages and publish CI summary** for logged stage transitions. After the job finishes, the run summary contains a stage results/duration table and test counts, including reports for failed builds when available.
+
+For the live graphical stage view, open Jenkins job `identity-service-ci` and select **Full Stage View**, or view the **Stage View** table on its job page. Each column represents a real pipeline stage; select a stage cell to open its logs. The `pipeline-stage-view:2.41` plugin is declared in the infrastructure's `docker/jenkins-controller/plugins.txt` and baked into the controller image. It also provides `/job/identity-service-ci/<build>/wfapi/describe`, which GitHub polls for stage details.
+
+The summary links use the existing browser address `http://127.0.0.1:8080`; keep your usual Jenkins access/tunnel available. GitHub retains one orchestration box because execution remains in Jenkins. The stage graph and live stage logs are in Jenkins; GitHub receives stage transitions and the final table. This workflow performs CI and image publishing, with no deployment stage.
+
+The observer validates that the Jenkins build's submitted `GIT_COMMIT` equals the GitHub SHA before reporting results, and sends credentials only to the private controller origin. A failed Jenkins build still fails GitHub even if all stages succeeded but a post-build action failed. Test the reporting helper locally with `node ci/jenkins-github.test.cjs`.
