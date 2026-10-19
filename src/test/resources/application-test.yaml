@@ -1,0 +1,5 @@
+spring:
+  security:
+    user:
+      name: integration-test
+      password: integration-test-only

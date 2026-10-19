@@ -14,13 +14,15 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(IdentityServiceApplicationTests.DatabaseConfiguration.class)
-class IdentityServiceApplicationTests {
+@Import(IdentityServicePostgresqlIT.DatabaseConfiguration.class)
+class IdentityServicePostgresqlIT {
 
 	@Autowired
 	JdbcTemplate jdbc;

@@ -1,19 +1,16 @@
 name: Jenkins feature verification
 on:
   push:
-    branches: [feature/SCRUM-13-bootstrap-infrastructure]
+    branches: ['**']
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: identity-service-jenkins-feature
-  cancel-in-progress: false
 jobs:
   jenkins:
     name: Jenkins PostgreSQL verification
-    if: github.ref == 'refs/heads/feature/SCRUM-13-bootstrap-infrastructure'
+    if: github.ref_type == 'branch'
     runs-on: [self-hosted, Linux, X64, nahuatl-ci]
-    timeout-minutes: 40
+    timeout-minutes: 100
     steps:
       - name: Invoke Jenkins and wait for verification
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8 (Node 24)
@@ -48,7 +45,7 @@ jobs:
               if (!response.ok) throw new Error(`Jenkins HTTP ${response.status}`);
               return response;
             };
-            const deadline = Date.now() + 35 * 60 * 1000;
+            const deadline = Date.now() + 95 * 60 * 1000;
             const pause = async () => {
               if (Date.now() > deadline) throw new Error('Timed out waiting for Jenkins');
               await new Promise(resolve => setTimeout(resolve, 5000));
