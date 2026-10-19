@@ -1,17 +1,14 @@
 name: Jenkins feature verification
 on:
   push:
-    branches: [feature/SCRUM-13-bootstrap-infrastructure]
+    branches: ['**']
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: identity-service-jenkins-feature
-  cancel-in-progress: false
 jobs:
   jenkins:
     name: Jenkins PostgreSQL verification
-    if: github.ref == 'refs/heads/feature/SCRUM-13-bootstrap-infrastructure'
+    if: github.ref_type == 'branch'
     runs-on: [self-hosted, Linux, X64, nahuatl-ci]
     timeout-minutes: 40
     steps:
