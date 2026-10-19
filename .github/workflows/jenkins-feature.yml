@@ -1,4 +1,5 @@
-name: Jenkins feature verification
+name: Identity service CI
+run-name: Identity service CI · ${{ github.ref_name }} · ${{ github.event_name }}
 on:
   push:
     branches: ['**']
@@ -7,13 +8,18 @@ permissions:
   contents: read
 jobs:
   jenkins:
-    name: Jenkins PostgreSQL verification
+    name: Run CI in Jenkins
     if: github.ref_type == 'branch'
     runs-on: [self-hosted, Linux, X64, nahuatl-ci]
     timeout-minutes: 100
     steps:
-      - name: Invoke Jenkins and wait for verification
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8 (Node 24)
+      - name: Load CI observer
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5, Node 24
+        with:
+          persist-credentials: false
+      - name: Start Jenkins pipeline
+        id: start
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8, Node 24
         env:
           JENKINS_URL: http://jenkins-controller:8080
           JENKINS_USER: ${{ secrets.JENKINS_USER }}
@@ -21,57 +27,16 @@ jobs:
           BUILD_SHA: ${{ github.sha }}
         with:
           script: |
-            const base = process.env.JENKINS_URL;
-            const sha = process.env.BUILD_SHA;
-            if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('Invalid commit SHA');
-            if (!process.env.JENKINS_USER || !process.env.JENKINS_API_TOKEN) {
-              throw new Error('Configure JENKINS_USER and JENKINS_API_TOKEN repository secrets');
-            }
-            const authorization = 'Basic ' + Buffer.from(
-              process.env.JENKINS_USER + ':' + process.env.JENKINS_API_TOKEN
-            ).toString('base64');
-            // Jenkins may return its browser URL (loopback) in Location/executable.url.
-            // Preserve only the path and send authentication only to the private controller.
-            const internal = value => {
-              const url = new URL(value, base);
-              return base + url.pathname + url.search;
-            };
-            const request = async (url, options = {}) => {
-              const response = await fetch(internal(url), {
-                ...options, redirect: 'manual',
-                headers: { Authorization: authorization, ...options.headers },
-                signal: AbortSignal.timeout(30000)
-              });
-              if (!response.ok) throw new Error(`Jenkins HTTP ${response.status}`);
-              return response;
-            };
-            const deadline = Date.now() + 95 * 60 * 1000;
-            const pause = async () => {
-              if (Date.now() > deadline) throw new Error('Timed out waiting for Jenkins');
-              await new Promise(resolve => setTimeout(resolve, 5000));
-            };
-            const response = await request('/job/identity-service-ci/buildWithParameters', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({ GIT_COMMIT: sha }).toString()
-            });
-            const queue = response.headers.get('location');
-            if (!queue) throw new Error('Jenkins did not return a queue location');
-            let build;
-            while (!build) {
-              await pause();
-              const item = await (await request(internal(queue).replace(/\/$/, '') + '/api/json')).json();
-              if (item.cancelled) throw new Error('Jenkins queue item was cancelled');
-              build = item.executable;
-            }
-            core.info(`Jenkins build #${build.number}; requested commit ${sha}`);
-            let result;
-            while (true) {
-              await pause();
-              result = await (await request(internal(build.url).replace(/\/$/, '') + '/api/json')).json();
-              if (!result.building && result.result) break;
-            }
-            await core.summary.addHeading('Jenkins verification')
-              .addRaw(`Job: identity-service-ci; build: #${build.number}\n\n`)
-              .addRaw(`Commit: ${sha}\n\nResult: ${result.result}\n`).write();
-            if (result.result !== 'SUCCESS') throw new Error(`Jenkins result: ${result.result}`);
+            await require('./ci/jenkins-github.cjs')({ core, mode: 'start' });
+      - name: Follow Jenkins stages and publish CI summary
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8, Node 24
+        env:
+          JENKINS_URL: http://jenkins-controller:8080
+          JENKINS_BROWSER_URL: http://127.0.0.1:8080
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
+          BUILD_SHA: ${{ github.sha }}
+          JENKINS_BUILD_NUMBER: ${{ steps.start.outputs.build_number }}
+        with:
+          script: |
+            await require('./ci/jenkins-github.cjs')({ core, mode: 'watch' });
