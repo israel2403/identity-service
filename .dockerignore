@@ -1,0 +1,4 @@
+**
+!target/
+!target/identity-service.jar
+!Dockerfile

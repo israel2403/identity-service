@@ -45,3 +45,7 @@ build/
 hs_err_pid*
 replay_pid*
 *.hprof
+
+# CI tools and temporary registry credentials
+.ci-tools/
+.docker-ci/
