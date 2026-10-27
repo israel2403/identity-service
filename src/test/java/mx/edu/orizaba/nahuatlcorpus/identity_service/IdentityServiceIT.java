@@ -35,7 +35,7 @@ class IdentityServiceIT {
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class))
-        .isEqualTo(1);
+        .isEqualTo(2);
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'identity_service'",
