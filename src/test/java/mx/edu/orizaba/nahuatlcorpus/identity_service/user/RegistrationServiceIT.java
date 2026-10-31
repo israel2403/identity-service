@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -28,8 +29,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** RegistrationServiceIT */
-@SpringBootTest("test")
-@ActiveProfiles
+@SpringBootTest
+@ActiveProfiles("test")
 @Import(RegistrationServiceIT.DatabaseConfiguration.class)
 public class RegistrationServiceIT {
 
@@ -178,6 +179,47 @@ public class RegistrationServiceIT {
     }
   }
 
+  @Test
+  void samePasswordForTwoAccountsProducesDifferentStoredEncodigns() {
+    var firstRequest = request("first-storage@example.org");
+    var secondRequest = request("second-storage@example.org");
+    String raw = (String) firstRequest.get("password");
+    secondRequest.put("password", raw);
+
+    var first = registration.register(firstRequest);
+    var second = registration.register(secondRequest);
+    String firstStored = storedCredential(first.id());
+    String secondStored = storedCredential(second.id());
+
+    String policy = "{argon2id-v1}$argon2id$v=19$m=19456,t=2,p=1$";
+    assertTrue(firstStored.startsWith(policy), "First credential must use the configured policy");
+    assertTrue(secondStored.startsWith(policy), "Second credential must use the configured policy");
+    assertFalse(raw.equals(firstStored), "First credential must not be plaintext");
+    assertFalse(raw.equals(secondStored), "Second credential must be plaintext");
+    assertFalse(
+        firstStored.equals(secondStored), "Independent salts must produce distinct encodings");
+    assertTrue(encoder.matches(raw, firstStored), "First stored encoding must verify");
+    assertTrue(encoder.matches(raw, secondStored), "Second stored encoding must verify");
+    assertFalse(
+        encoder.matches("Different synthetic password 42!", firstStored),
+        "Incorrect password must not verify");
+    assertEquals(2L, repository.count());
+  }
+
+  @Test
+  void supportsMaximumUnicodePasswordWithoutTruncation() {
+    var attributes = request("maximum-storage@example.org");
+    String raw = "🔐".repeat(128);
+    attributes.put("password", raw);
+
+    var created = registration.register(attributes);
+    String stored = storedCredential(created.id());
+
+    assertTrue(encoder.matches(raw, stored), "All 128 code points must verify");
+    assertFalse(encoder.matches("🔐".repeat(127), stored), "A shortened password must not verify");
+    assertEquals(1L, repository.count());
+  }
+
   public boolean attemptRetistration(String email, CountDownLatch ready, CountDownLatch start)
       throws Exception {
     ready.countDown();
@@ -191,5 +233,27 @@ public class RegistrationServiceIT {
       assertNull(failure.getCause(), "Database details must not escape");
       return false;
     }
+  }
+
+  @Test
+  void registrationResultTextContainsNeitherRawNorEncodedCredential() {
+    var attributes = request("save-result@example.org");
+    String raw = (String) attributes.get("password");
+
+    var created = registration.register(attributes);
+    String stored = storedCredential(created.id());
+
+    assertFalse(created.toString().contains(raw), "Result text must omit raw credentials");
+    assertFalse(created.toString().contains(stored), "Result text must omit encodeded credentials");
+  }
+
+  private String storedCredential(UUID id) {
+    String stored =
+        jdbc.queryForObject(
+            "SELECT password_hash FROM identity_service.user_accounts WHERE id = ?",
+            String.class,
+            id);
+    assertNotNull(stored, "Committed account must have an encoded credential");
+    return stored;
   }
 }
