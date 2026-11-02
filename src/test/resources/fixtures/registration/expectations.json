@@ -1,0 +1,100 @@
+{
+  "settings": {
+    "unitId": "b952dc40-91da-42a9-ac1f-eccbdd5ef795",
+    "failureMessage": "synthetic-internal-credential-fixture SQL uq_user_accounts_email",
+    "causeMessage": "synthetic-internal-credential-fixture SQL",
+    "forbiddenResponseFragments": [
+      "{argon2id-v1}",
+      "synthetic-internal-credential-fixture",
+      "uq_user_accounts_email",
+      "SQL",
+      "stackTrace",
+      "java.io"
+    ],
+    "invalidPasswords": [
+      "Synthetic API café 🔐 password 42!",
+      "  Synthetic API café 🔐 password 42!  ",
+      "Different synthetic password 42!"
+    ],
+    "violations": [
+      {
+        "field": "email",
+        "code": "REQUIRED_FIELD"
+      },
+      {
+        "field": "password",
+        "code": "INVALID_TYPE"
+      }
+    ],
+    "concurrentStatuses": [
+      201,
+      409
+    ],
+    "concurrentAccounts": 1
+  },
+  "cases": {
+    "valid": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "all-missing": {"status": 422, "accounts": 0, "code": "REQUIRED_FIELD", "errors": [{"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "fullname"}, {"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "email"}, {"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "password"}]},
+    "missing-fullname": {"status": 422, "accounts": 0, "code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "fullname"},
+    "fullname-null": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/fullname"},
+    "fullname-number": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/fullname"},
+    "fullname-boolean": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/fullname"},
+    "fullname-array": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/fullname"},
+    "fullname-object": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/fullname"},
+    "missing-email": {"status": 422, "accounts": 0, "code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "email"},
+    "email-null": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/email"},
+    "email-number": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/email"},
+    "email-boolean": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/email"},
+    "email-array": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/email"},
+    "email-object": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/email"},
+    "missing-password": {"status": 422, "accounts": 0, "code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "password"},
+    "password-null": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/password"},
+    "password-number": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/password"},
+    "password-boolean": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/password"},
+    "password-array": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/password"},
+    "password-object": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "pointer": "/data/attributes/password"},
+    "fullname-invalid": {"status": 422, "accounts": 0, "code": "INVALID_VALUE", "pointer": "/data/attributes/fullname"},
+    "email-invalid": {"status": 422, "accounts": 0, "code": "INVALID_VALUE", "pointer": "/data/attributes/email"},
+    "password-invalid": {"status": 422, "accounts": 0, "code": "INVALID_VALUE", "pointer": "/data/attributes/password"},
+    "boundary-100-15": {"status": 201, "accounts": 1, "fullname": "ĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀ", "email": "person@example.org"},
+    "boundary-100-128": {"status": 201, "accounts": 1, "fullname": "ĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀĀ", "email": "person@example.org"},
+    "boundary-101-15": {"status": 422, "accounts": 0, "code": "INVALID_VALUE", "pointer": "/data/attributes/fullname"},
+    "boundary-100-14": {"status": 422, "accounts": 0, "code": "INVALID_VALUE", "pointer": "/data/attributes/password"},
+    "boundary-100-129": {"status": 422, "accounts": 0, "code": "INVALID_VALUE", "pointer": "/data/attributes/password"},
+    "metadata": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "empty-document": {"status": 400, "accounts": 0, "code": "INVALID_DOCUMENT", "pointer": ""},
+    "bulk-data": {"status": 400, "accounts": 0, "code": "INVALID_DOCUMENT", "pointer": "/data"},
+    "missing-attributes": {"status": 400, "accounts": 0, "code": "INVALID_DOCUMENT", "pointer": "/data"},
+    "null-attributes": {"status": 400, "accounts": 0, "code": "INVALID_DOCUMENT", "pointer": "/data/attributes"},
+    "array-attributes": {"status": 400, "accounts": 0, "code": "INVALID_DOCUMENT", "pointer": "/data/attributes"},
+    "wrong-resource-type": {"status": 409, "accounts": 0, "code": "RESOURCE_TYPE_CONFLICT", "pointer": "/data/type"},
+    "client-id": {"status": 403, "accounts": 0, "code": "CLIENT_ID_NOT_SUPPORTED", "pointer": "/data/id"},
+    "roles": {"status": 400, "accounts": 0, "code": "UNSUPPORTED_FIELD", "pointer": "/data/attributes"},
+    "hash-input": {"status": 400, "accounts": 0, "code": "UNSUPPORTED_FIELD", "pointer": "/data/attributes"},
+    "relationships": {"status": 400, "accounts": 0, "code": "UNSUPPORTED_FIELD", "pointer": "/data/relationships"},
+    "malformed": {"status": 400, "accounts": 0, "code": "MALFORMED_JSON"},
+    "duplicate-keys": {"status": 400, "accounts": 0, "code": "MALFORMED_JSON"},
+    "trailing-json": {"status": 400, "accounts": 0, "code": "MALFORMED_JSON"},
+    "wrong-content": {"status": 415, "accounts": 0, "code": "UNSUPPORTED_MEDIA_TYPE"},
+    "content-charset": {"status": 415, "accounts": 0, "code": "UNSUPPORTED_MEDIA_TYPE"},
+    "wrong-accept": {"status": 406, "accounts": 0, "code": "NOT_ACCEPTABLE"},
+    "accept-zero": {"status": 406, "accounts": 0, "code": "NOT_ACCEPTABLE"},
+    "accept-zero-wildcard": {"status": 406, "accounts": 0, "code": "NOT_ACCEPTABLE"},
+    "accept-charset": {"status": 406, "accounts": 0, "code": "NOT_ACCEPTABLE"},
+    "unsupported-accept-extension": {"status": 406, "accounts": 0, "code": "NOT_ACCEPTABLE"},
+    "unsupported-extension": {"status": 415, "accounts": 0, "code": "UNSUPPORTED_MEDIA_TYPE"},
+    "accept-any": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "accept-application": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "accept-exact": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "accept-alternative": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "unknown-profile": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "method": {"status": 405, "accounts": 0, "code": "METHOD_NOT_ALLOWED", "allow": "POST"},
+    "oversized": {"status": 413, "accounts": 0, "code": "REQUEST_TOO_LARGE"},
+    "duplicate": {"status": 409, "accounts": 1, "code": "EMAIL_ALREADY_REGISTERED", "pointer": "/data/attributes/email"},
+    "concurrent-second": {"status": 201, "accounts": 1, "fullname": "María Ācatl", "email": "person@example.org"},
+    "server-failure": {"status": 500, "accounts": 0, "code": "INTERNAL_ERROR"},
+    "mixed-types": {"status": 422, "accounts": 0, "code": "INVALID_TYPE", "errors": [{"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "fullname"}, {"code": "INVALID_TYPE", "pointer": "/data/attributes/email"}, {"code": "INVALID_TYPE", "pointer": "/data/attributes/password"}]},
+    "metadata-empty": {"status": 422, "accounts": 0, "code": "REQUIRED_FIELD", "errors": [{"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "fullname"}, {"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "email"}, {"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "password"}]},
+    "validation-stub": {"status": 422, "accounts": 0, "code": "REQUIRED_FIELD", "pointer": "/data/attributes", "errors": [{"code": "REQUIRED_FIELD", "pointer": "/data/attributes", "missingField": "email"}, {"code": "INVALID_TYPE", "pointer": "/data/attributes/password"}]}
+  }
+}
