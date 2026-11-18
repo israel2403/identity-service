@@ -12,6 +12,8 @@ jobs:
     if: github.ref_type == 'branch'
     runs-on: [self-hosted, Linux, X64, nahuatl-ci]
     timeout-minutes: 100
+    outputs:
+      build_number: ${{ steps.start.outputs.build_number }}
     steps:
       - name: Load CI observer
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5, Node 24
@@ -40,3 +42,31 @@ jobs:
         with:
           script: |
             await require('./ci/jenkins-github.cjs')({ core, mode: 'watch' });
+
+  staging:
+    name: Promote to staging in Jenkins
+    needs: jenkins
+    if: needs.jenkins.result == 'success' && github.ref == 'refs/heads/main'
+    environment: staging
+    runs-on: [self-hosted, Linux, X64, nahuatl-staging]
+    concurrency:
+      group: identity-service-staging
+      cancel-in-progress: false
+    timeout-minutes: 27
+    steps:
+      - name: Load Jenkins observer
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5, Node 24
+        with:
+          persist-credentials: false
+      - name: Start and follow the staging promotion
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8, Node 24
+        env:
+          JENKINS_URL: ${{ vars.STAGING_JENKINS_URL }}
+          JENKINS_BROWSER_URL: ${{ vars.STAGING_JENKINS_BROWSER_URL }}
+          JENKINS_USER: ${{ secrets.STAGING_JENKINS_USER }}
+          JENKINS_API_TOKEN: ${{ secrets.STAGING_JENKINS_API_TOKEN }}
+          BUILD_SHA: ${{ github.sha }}
+          JENKINS_CI_BUILD_NUMBER: ${{ needs.jenkins.outputs.build_number }}
+        with:
+          script: |
+            await require('./ci/jenkins-github.cjs')({ core, mode: 'promote' });

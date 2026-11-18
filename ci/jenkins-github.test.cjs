@@ -105,3 +105,49 @@ test('bounds queue waiting by the configured deadline', async () => {
       ? response(null, 201, '/queue/item/9/') : response({}),
   }), /Timed out waiting for Jenkins/);
 });
+
+test('promotes the successful CI build and reports the Jenkins result', async t => {
+  for (const result of ['SUCCESS', 'FAILURE', 'WRONG_SOURCE']) {
+    await t.test(result, async () => {
+      const h = harness();
+      const calls = [];
+      const promotionPath = '/job/staging/job/identity-service-promote/';
+      const execution = run({
+        core: h.core,
+        env: { ...env, JENKINS_CI_BUILD_NUMBER: '26' },
+        mode: 'promote',
+        sleep: async () => {},
+        fetch: async (url, options) => {
+          calls.push(new URL(url).pathname);
+          if (url.endsWith('buildWithParameters')) {
+            assert.deepEqual(Object.fromEntries(new URLSearchParams(options.body)), {
+              CI_BUILD: '26', GIT_COMMIT: env.BUILD_SHA,
+            });
+            return response(null, 201, 'http://127.0.0.1:8080/queue/item/9/');
+          }
+          if (url.includes('/queue/')) return response({ executable: { number: 7 } });
+          return response({
+            building: false,
+            result,
+            actions: [{ parameters: [
+              { name: 'CI_BUILD', value: result === 'WRONG_SOURCE' ? '27' : '26' },
+              { name: 'GIT_COMMIT', value: env.BUILD_SHA },
+            ] }],
+          });
+        },
+      });
+      if (result === 'SUCCESS') await execution;
+      else await assert.rejects(execution, result === 'FAILURE' ? /promotion result: FAILURE/ : /parameters do not match/);
+      assert.deepEqual(calls, [
+        promotionPath + 'buildWithParameters',
+        '/queue/item/9/api/json',
+        promotionPath + '7/api/json',
+      ]);
+      if (result !== 'WRONG_SOURCE') {
+        assert.ok(h.summary.some(item => item.method === 'addLink' &&
+          item.args[1] === env.JENKINS_BROWSER_URL + promotionPath + '7/'));
+        assert.ok(h.summary.some(item => item.method === 'addRaw' && item.args[0].includes(result)));
+      }
+    });
+  }
+});

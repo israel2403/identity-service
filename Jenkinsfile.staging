@@ -65,13 +65,27 @@ kubectl -n identity-staging get deployment identity-service \
 kubectl -n identity-staging set image deployment/identity-service identity-service="$image"
 kubectl -n identity-staging rollout status deployment/identity-service --timeout=5m
 
-status=$(curl -sS --max-time 15 -o smoke-response.json -w '%{http_code}' \
-  --resolve api.staging.test:443:192.168.121.212 --cacert "$KONG_CERT" \
-  -H 'Content-Type: application/vnd.api+json' \
-  -H 'Accept: application/vnd.api+json' --data '{}' \
-  https://api.staging.test/api/v1/users)
-test "$status" = 400
-jq -e 'any(.errors[]; .code == "INVALID_DOCUMENT")' smoke-response.json
+attempt=1
+while [ "$attempt" -le 10 ]; do
+    if status=$(curl -sS --max-time 15 -o smoke-response.json -w '%{http_code}' \
+      --resolve api.staging.test:443:192.168.121.212 --cacert "$KONG_CERT" \
+      -H 'Content-Type: application/vnd.api+json' \
+      -H 'Accept: application/vnd.api+json' --data '{}' \
+      https://api.staging.test/api/v1/users); then
+        if [ "$status" = 400 ] &&
+           jq -e 'any(.errors[]; .code == "INVALID_DOCUMENT")' smoke-response.json; then
+            exit 0
+        fi
+        case "$status" in
+            502|503|504) ;;
+            *) echo "Unexpected staging smoke response: HTTP $status" >&2; exit 1 ;;
+        esac
+    fi
+    if [ "$attempt" -lt 10 ]; then sleep 5; fi
+    attempt=$((attempt + 1))
+done
+echo 'Staging HTTPS smoke check did not recover' >&2
+exit 1
 '''
                 }
             }
