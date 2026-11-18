@@ -1,0 +1,86 @@
+pipeline {
+    agent { label 'nahuatl-staging-deploy' }
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 15, unit: 'MINUTES')
+        timestamps()
+    }
+    parameters {
+        string(name: 'CI_BUILD', defaultValue: '', description: 'Successful identity-service-ci build number')
+        string(name: 'GIT_COMMIT', defaultValue: '', description: 'Full SHA of protected main')
+    }
+    environment {
+        CI_API = 'http://jenkins-controller:8080/job/identity-service-ci'
+        SOURCE_REPO = 'https://github.com/israel2403/identity-service.git'
+    }
+    stages {
+        stage('Verify build provenance') {
+            steps {
+                deleteDir()
+                withCredentials([usernamePassword(credentialsId: 'staging-ci-reader',
+                        usernameVariable: 'CI_USER', passwordVariable: 'CI_TOKEN')]) {
+                    sh '''#!/bin/sh
+set -eu
+printf '%s\n' "$CI_BUILD" | grep -Eq '^[1-9][0-9]*$'
+printf '%s\n' "$GIT_COMMIT" | grep -Eq '^[0-9a-f]{40}$'
+main_tip=$(git ls-remote --exit-code "$SOURCE_REPO" refs/heads/main | cut -f1)
+test "$main_tip" = "$GIT_COMMIT"
+
+build_url="$CI_API/$CI_BUILD"
+curl -fsS --max-time 20 --user "$CI_USER:$CI_TOKEN" "$build_url/api/json" -o build.json
+jq -e --arg sha "$GIT_COMMIT" --argjson number "$CI_BUILD" '
+    .number == $number and .result == "SUCCESS" and .building == false
+    and any(.actions[]? | .parameters[]?; .name == "GIT_COMMIT" and .value == $sha)
+' build.json >/dev/null
+for artifact in published-image.txt published-digests.json; do
+    curl -fsS --max-time 20 --user "$CI_USER:$CI_TOKEN" \
+      "$build_url/artifact/target/ci-reports/$artifact" -o "$artifact"
+done
+test "$(cat published-image.txt)" = "israelhf24/identity-service:sha-$GIT_COMMIT-build-$CI_BUILD"
+jq -er '
+    [.[] | select(test("^(docker.io/)?israelhf24/identity-service@sha256:[a-f0-9]{64}$"))]
+    | if length == 1 then .[0] else error("expected one Identity Service digest") end
+' published-digests.json > verified-image.txt
+printf '%s\n' "$GIT_COMMIT" > promoted-commit.txt
+printf '%s\n' "$CI_BUILD" > source-build.txt
+'''
+                }
+            }
+        }
+        stage('Roll out and verify HTTPS') {
+            steps {
+                withCredentials([
+                    file(credentialsId: 'staging-kubeconfig', variable: 'KUBECONFIG'),
+                    file(credentialsId: 'staging-kong-cert', variable: 'KONG_CERT')
+                ]) {
+                    sh '''#!/bin/sh
+set -eu
+image=$(cat verified-image.txt)
+main_tip=$(git ls-remote --exit-code "$SOURCE_REPO" refs/heads/main | cut -f1)
+test "$main_tip" = "$GIT_COMMIT"
+
+kubectl -n identity-staging get deployment identity-service \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="identity-service")].image}' > previous-image.txt
+kubectl -n identity-staging set image deployment/identity-service identity-service="$image"
+kubectl -n identity-staging rollout status deployment/identity-service --timeout=5m
+
+status=$(curl -sS --max-time 15 -o smoke-response.json -w '%{http_code}' \
+  --resolve api.staging.test:443:192.168.121.212 --cacert "$KONG_CERT" \
+  -H 'Content-Type: application/vnd.api+json' \
+  -H 'Accept: application/vnd.api+json' --data '{}' \
+  https://api.staging.test/api/v1/users)
+test "$status" = 400
+jq -e 'any(.errors[]; .code == "INVALID_DOCUMENT")' smoke-response.json
+'''
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts allowEmptyArchive: true, fingerprint: true,
+                artifacts: 'verified-image.txt,previous-image.txt,promoted-commit.txt,source-build.txt,smoke-response.json'
+        }
+    }
+}
