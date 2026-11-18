@@ -7,10 +7,16 @@ module.exports = async function run({
   const sha = env.BUILD_SHA;
   if (!/^[0-9a-f]{40}$/.test(sha || '')) throw new Error('Invalid commit SHA');
   if (!env.JENKINS_USER || !env.JENKINS_API_TOKEN) throw new Error('Missing Jenkins credentials');
-  const base = env.JENKINS_URL;
+  if (!env.JENKINS_URL) throw new Error('Missing Jenkins URL');
+  const base = new URL(env.JENKINS_URL).origin;
   const authorization = 'Basic ' + Buffer.from(`${env.JENKINS_USER}:${env.JENKINS_API_TOKEN}`).toString('base64');
-  const deadline = now() + 95 * 60 * 1000;
-  const path = '/job/identity-service-ci/';
+  const promoting = mode === 'promote';
+  const sourceBuild = env.JENKINS_CI_BUILD_NUMBER;
+  if (promoting && !/^[1-9]\d*$/.test(sourceBuild || '')) {
+    throw new Error('Invalid Jenkins source build number');
+  }
+  const deadline = now() + (promoting ? 25 : 95) * 60 * 1000;
+  const path = promoting ? '/job/staging/job/identity-service-promote/' : '/job/identity-service-ci/';
   const request = async (value, options = {}, allowNotFound = false) => {
     // Jenkins returns browser/loopback URLs. Authenticate only to our private origin.
     const parsed = new URL(value, base);
@@ -27,29 +33,58 @@ module.exports = async function run({
     if (now() > deadline) throw new Error('Timed out waiting for Jenkins');
     await sleep(5000);
   };
-  if (mode === 'start') {
+  const start = async parameters => {
     const response = await request(path + 'buildWithParameters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ GIT_COMMIT: sha }).toString(),
+      body: new URLSearchParams(parameters).toString(),
     });
     const queue = response.headers.get('location');
     if (!queue) throw new Error('Jenkins did not return a queue location');
+    const queuePath = new URL(queue, base).pathname;
+    if (!/^\/queue\/item\/\d+\/?$/.test(queuePath)) throw new Error('Invalid Jenkins queue location');
     while (true) {
       await pause();
-      const item = await json(queue.replace(/\/$/, '') + '/api/json');
+      const item = await json(queuePath.replace(/\/$/, '') + '/api/json');
       if (item.cancelled) throw new Error('Jenkins queue item was cancelled');
       if (item.executable) {
         const number = String(item.executable.number);
         if (!/^\d+$/.test(number)) throw new Error('Invalid Jenkins build number');
-        core.setOutput('build_number', number);
-        core.info(`Jenkins build #${number}; requested commit ${sha}`);
-        await core.summary.addHeading('Identity service CI')
-          .addRaw(`Jenkins build: #${number}\n\nCommit: ${sha}\n\n`)
-          .addRaw('Each following GitHub job reports one real Jenkins stage. Jenkins executes the pipeline.\n')
+        return number;
+      }
+    }
+  };
+  if (mode === 'start') {
+    const number = await start({ GIT_COMMIT: sha });
+    core.setOutput('build_number', number);
+    core.info(`Jenkins build #${number}; requested commit ${sha}`);
+    await core.summary.addHeading('Identity service CI')
+      .addRaw(`Jenkins build: #${number}\n\nCommit: ${sha}\n\n`)
+      .addRaw('Each following GitHub job reports one real Jenkins stage. Jenkins executes the pipeline.\n')
+      .write();
+    return;
+  }
+  if (promoting) {
+    const number = await start({ CI_BUILD: sourceBuild, GIT_COMMIT: sha });
+    const buildPath = path + number + '/';
+    const browser = new URL(buildPath, env.JENKINS_BROWSER_URL || base).href;
+    core.info(`Jenkins staging promotion #${number} for CI build #${sourceBuild}`);
+    while (true) {
+      const build = await json(buildPath + 'api/json');
+      const parameters = (build.actions || []).flatMap(action => action.parameters || []);
+      if (!parameters.some(parameter => parameter.name === 'GIT_COMMIT' && parameter.value === sha) ||
+          !parameters.some(parameter => parameter.name === 'CI_BUILD' && parameter.value === sourceBuild)) {
+        throw new Error('Jenkins promotion parameters do not match the successful GitHub CI build');
+      }
+      if (!build.building && build.result) {
+        await core.summary.addHeading('Identity service staging promotion')
+          .addRaw(`CI build: **#${sourceBuild}** · Promotion: **#${number}** · Result: **${build.result}**\n\nCommit: ${sha}\n\n`)
+          .addLink('Open the Jenkins promotion', browser)
           .write();
+        if (build.result !== 'SUCCESS') throw new Error(`Jenkins staging promotion result: ${build.result}`);
         return;
       }
+      await pause();
     }
   }
   if (mode !== 'watch') throw new Error('Unknown Jenkins operation');
